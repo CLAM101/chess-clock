@@ -179,12 +179,12 @@ function tick(now){
   if(st.mode==='delay'){const d=st.inc[a];spend=Math.max(0,st.turnUsed-Math.max(d,prevUsed))}
   st.time[a]-=spend;
   if(st.mode==='hourglass')st.time[o]+=spend;
-  if(st.time[a]<=0){st.time[a]=0;st.running=false;st.flag=a;beep(220,0.6);vibrate([300,100,300]);releaseWake();render();return}
+  if(st.time[a]<=0){st.time[a]=0;st.running=false;st.flag=a;beep(220,0.6);vibrate([300,100,300]);render();return}
   if(st.time[a]<10000&&Math.floor((st.time[a]+spend)/1000)!==Math.floor(st.time[a]/1000))beep(880,0.05);
   render();raf=requestAnimationFrame(tick);
 }
 function start(){if(st.flag||!st.active)return;st.running=true;st.last=performance.now();requestWake();raf=requestAnimationFrame(tick);render()}
-function pause(){st.running=false;cancelAnimationFrame(raf);releaseWake();render()}
+function pause(){st.running=false;cancelAnimationFrame(raf);render()}
 function press(i){
   if(st.flag)return;
   unlockAudio();
@@ -204,9 +204,20 @@ function unlockAudio(){if(!audioCtx){try{audioCtx=new (window.AudioContext||wind
 function beep(f,d){if(!sound||!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=f;g.gain.value=.15;o.connect(g);g.connect(audioCtx.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+d);o.stop(audioCtx.currentTime+d)}
 function click(){beep(1200,0.03)}
 function vibrate(p){if(navigator.vibrate)try{navigator.vibrate(p)}catch{}}
-async function requestWake(){try{if('wakeLock' in navigator&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null)}}catch{}}
-function releaseWake(){try{wakeLock&&wakeLock.release()}catch{}wakeLock=null}
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&st.running)requestWake()});
+// Keep the screen awake the whole time the app is open.
+// 1) Screen Wake Lock API (iOS 16.4+, Android Chrome). 2) Fallback: a muted, looping inline video, which also stops iOS auto-lock.
+const keepVid=document.createElement('video');
+keepVid.src='keepawake.mp4';keepVid.muted=true;keepVid.loop=true;keepVid.playsInline=true;keepVid.setAttribute('playsinline','');keepVid.setAttribute('muted','');
+keepVid.style.cssText='position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;bottom:0;left:0';
+document.body.appendChild(keepVid);
+async function requestWake(){
+  try{if('wakeLock' in navigator&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null})}}catch{}
+  if(!wakeLock&&keepVid.paused){try{await keepVid.play()}catch{}}
+}
+function releaseWake(){try{wakeLock&&wakeLock.release()}catch{}wakeLock=null;keepVid.pause()}
+document.addEventListener('pointerdown',()=>{requestWake()},{capture:true});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')requestWake()});
+requestWake();
 
 $('s1').addEventListener('pointerdown',e=>{e.preventDefault();press(1)});
 $('s2').addEventListener('pointerdown',e=>{e.preventDefault();press(2)});
