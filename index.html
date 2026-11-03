@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chess Clock">
+<title>Chess Clock</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{height:100%;background:#111;color:#eee;font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden;touch-action:manipulation}
+#clock{display:flex;flex-direction:column;height:100%;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.side{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#2a2a2a;margin:6px;border-radius:18px;position:relative;transition:background .15s;cursor:pointer}
+.side.top{transform:rotate(180deg)}
+.side.active{background:#e8e2d0;color:#111}
+.side.low.active{background:#f2a33a}
+.side.flag{background:#c0392b!important;color:#fff}
+.time{font-size:min(22vw,16vh);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.time .tenths{font-size:.5em}
+.info{position:absolute;bottom:14px;left:18px;right:18px;display:flex;justify-content:space-between;font-size:15px;opacity:.65}
+.delaybar{position:absolute;top:0;left:0;height:6px;background:#2e86de;border-radius:18px 0 0 0;width:0}
+#bar{display:flex;justify-content:center;gap:14px;padding:4px 0}
+#bar button{background:#2a2a2a;color:#eee;border:0;border-radius:12px;width:58px;height:46px;font-size:22px}
+#bar button:active{background:#444}
+#setup{position:fixed;inset:0;background:#111;overflow-y:auto;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 24px);display:none}
+#setup.open{display:block}
+h1{font-size:24px;margin-bottom:4px}
+h2{font-size:14px;text-transform:uppercase;letter-spacing:.08em;opacity:.55;margin:20px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.preset{background:#222;border:2px solid transparent;border-radius:12px;padding:12px 6px;text-align:center;color:#eee;font-size:17px;font-weight:600}
+.preset small{display:block;font-size:12px;font-weight:400;opacity:.6;margin-top:2px}
+.preset.sel{border-color:#e8e2d0}
+.card{background:#1c1c1c;border-radius:14px;padding:14px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0}
+.row label{font-size:16px}
+input[type=number],select{background:#2a2a2a;color:#eee;border:0;border-radius:10px;padding:10px;font-size:16px;width:110px;text-align:right}
+select{text-align:left;width:auto}
+.seg{display:flex;background:#2a2a2a;border-radius:10px;padding:3px}
+.seg button{flex:1;background:none;border:0;color:#eee;padding:9px 6px;border-radius:8px;font-size:14px}
+.seg button.on{background:#e8e2d0;color:#111;font-weight:600}
+.hint{font-size:13px;opacity:.55;margin-top:6px;line-height:1.4}
+.stagebox{border-top:1px solid #333;margin-top:8px;padding-top:8px}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:16px;font-size:18px;font-weight:700;margin-top:14px}
+.btn.go{background:#e8e2d0;color:#111}
+.btn.sub{background:#2a2a2a;color:#eee;font-weight:500;font-size:16px;padding:12px}
+.mine{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.mine .preset{flex:1;text-align:left;padding:12px}
+.mine .del{background:#2a2a2a;border:0;color:#e66;border-radius:10px;width:44px;height:44px;font-size:18px}
+.chk{display:flex;align-items:center;gap:10px}
+.chk input{width:22px;height:22px}
+</style>
+</head>
+<body>
+<div id="clock">
+  <div class="side top" id="s1"><div class="delaybar" id="d1"></div><div class="time" id="t1">5:00</div><div class="info"><span id="m1">Moves: 0</span><span id="x1"></span></div></div>
+  <div id="bar">
+    <button id="bPause" aria-label="Pause">⏸</button>
+    <button id="bReset" aria-label="Reset">↺</button>
+    <button id="bSound" aria-label="Sound">🔊</button>
+    <button id="bSetup" aria-label="Settings">⚙︎</button>
+  </div>
+  <div class="side" id="s2"><div class="delaybar" id="d2"></div><div class="time" id="t2">5:00</div><div class="info"><span id="m2">Moves: 0</span><span id="x2"></span></div></div>
+</div>
+
+<div id="setup">
+  <h1>Chess Clock</h1>
+  <div class="hint">Tap your side to end your turn. The first tap starts your opponent's clock.</div>
+
+  <h2>Bullet</h2><div class="grid" data-cat="bullet"></div>
+  <h2>Blitz</h2><div class="grid" data-cat="blitz"></div>
+  <h2>Rapid</h2><div class="grid" data-cat="rapid"></div>
+  <h2>Classical</h2><div class="grid" data-cat="classical"></div>
+  <h2>Other</h2><div class="grid" data-cat="other"></div>
+
+  <h2>My presets</h2><div id="mine"><div class="hint">None saved yet.</div></div>
+
+  <h2>Custom</h2>
+  <div class="card">
+    <div class="row"><label>Timing</label>
+      <div class="seg" id="modeSeg">
+        <button data-m="fischer">Increment</button><button data-m="delay">Delay</button><button data-m="bronstein">Bronstein</button><button data-m="none">None</button>
+      </div>
+    </div>
+    <div class="hint" id="modeHint"></div>
+    <div class="row"><label>Minutes</label><input type="number" id="cMin" min="0" step="0.5" inputmode="decimal"></div>
+    <div class="row" id="incRow"><label id="incLabel">Increment (sec)</label><input type="number" id="cInc" min="0" step="1" inputmode="numeric"></div>
+    <div class="row"><label class="chk"><input type="checkbox" id="cOdds"> Different time for top player (time odds)</label></div>
+    <div id="oddsBox" style="display:none">
+      <div class="row"><label>Top minutes</label><input type="number" id="cMin1" min="0" step="0.5" inputmode="decimal"></div>
+      <div class="row"><label>Top increment/delay (sec)</label><input type="number" id="cInc1" min="0" step="1" inputmode="numeric"></div>
+    </div>
+    <div class="row"><label class="chk"><input type="checkbox" id="cStage"> Add time after a move (e.g. 90 min + 30 min at move 40)</label></div>
+    <div id="stageBox" class="stagebox" style="display:none">
+      <div class="row"><label>After move</label><input type="number" id="cStageMove" min="1" step="1" inputmode="numeric"></div>
+      <div class="row"><label>Add minutes</label><input type="number" id="cStageAdd" min="0" step="1" inputmode="numeric"></div>
+    </div>
+    <div class="row"><label>Name (optional)</label><input type="text" id="cName" style="background:#2a2a2a;color:#eee;border:0;border-radius:10px;padding:10px;font-size:16px;width:160px" placeholder="My game"></div>
+    <button class="btn go" id="bStartCustom">Start custom</button>
+    <button class="btn sub" id="bSave">Save as preset</button>
+  </div>
+  <button class="btn sub" id="bClose">Back to clock</button>
+  <div class="hint" style="text-align:center;margin-top:18px">Works offline once added to your home screen.</div>
+</div>
+
+<script>
+const PRESETS=[
+ {cat:'bullet',name:'1 | 0',min:1,inc:0},{cat:'bullet',name:'1 | 1',min:1,inc:1},{cat:'bullet',name:'2 | 1',min:2,inc:1},
+ {cat:'blitz',name:'3 | 0',min:3,inc:0},{cat:'blitz',name:'3 | 2',min:3,inc:2},{cat:'blitz',name:'5 | 0',min:5,inc:0},
+ {cat:'blitz',name:'5 | 3',min:5,inc:3},{cat:'blitz',name:'5 | 5',min:5,inc:5},{cat:'blitz',name:'5 + 2s delay',min:5,inc:2,mode:'delay'},
+ {cat:'rapid',name:'10 | 0',min:10,inc:0},{cat:'rapid',name:'10 | 5',min:10,inc:5},{cat:'rapid',name:'15 | 10',min:15,inc:10},
+ {cat:'rapid',name:'25 | 10',min:25,inc:10},{cat:'rapid',name:'20 | 0',min:20,inc:0},{cat:'rapid',name:'30 | 0',min:30,inc:0},
+ {cat:'classical',name:'30 | 20',min:30,inc:20},{cat:'classical',name:'60 | 30',min:60,inc:30},{cat:'classical',name:'90 | 30',min:90,inc:30},
+ {cat:'classical',name:'FIDE',sub:'90|30, +30 at move 40',min:90,inc:30,stage:{move:40,add:30}},{cat:'classical',name:'90 | 0',sub:'+30 at move 40',min:90,inc:0,stage:{move:40,add:30}},{cat:'classical',name:'120 | 0',min:120,inc:0},
+ {cat:'other',name:'Hourglass 1',sub:'1 min each',min:1,inc:0,mode:'hourglass'},{cat:'other',name:'Armageddon',sub:'5 vs 4 min',min:5,inc:0,odds:{min:4,inc:0}},{cat:'other',name:'Odds 5 v 2',sub:'5 vs 2 min',min:5,inc:0,odds:{min:2,inc:0}},
+];
+const MODE_LABEL={fischer:'Increment',delay:'Delay',bronstein:'Bronstein',none:'',hourglass:'Hourglass'};
+const MODE_HINT={
+ fischer:'Fischer increment: you get extra seconds added after each move.',
+ delay:'Simple (US) delay: your clock waits this many seconds before it starts counting down each move.',
+ bronstein:'Bronstein: after your move you get back the time you used, up to the delay amount.',
+ none:'Sudden death: no time added.'};
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){localStorage.setItem(k,JSON.stringify(v))}};
+
+let cfg=store.get('cfg',PRESETS[5]);
+let st, sound=store.get('sound',true), raf=null, wakeLock=null, audioCtx=null;
+
+function normalize(c){
+  const mode=c.mode||(c.inc>0?'fischer':'none');
+  const p2={ms:c.min*60000,inc:(c.inc||0)*1000};
+  const p1=c.odds?{ms:c.odds.min*60000,inc:(c.odds.inc||0)*1000}:{...p2};
+  return {mode,p:[null,p1,p2],stage:c.stage||null};
+}
+function reset(){
+  const n=normalize(cfg);
+  st={mode:n.mode,stage:n.stage,time:[0,n.p[1].ms,n.p[2].ms],inc:[0,n.p[1].inc,n.p[2].inc],moves:[0,0,0],
+      active:0,running:false,last:0,turnStart:0,turnUsed:0,flag:0,staged:[0,0,0]};
+  render();
+}
+function fmt(ms){
+  if(ms<0)ms=0;
+  if(ms<10000){const s=Math.floor(ms/1000),t=Math.floor(ms%1000/100);return `0:0${s}<span class="tenths">.${t}</span>`}
+  const tot=Math.ceil(ms/1000),h=Math.floor(tot/3600),m=Math.floor(tot%3600/60),s=tot%60;
+  return h?`${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${m}:${String(s).padStart(2,'0')}`;
+}
+function label(){
+  const n=normalize(cfg);let s=cfg.name||'';
+  if(!s){s=`${cfg.min}`+(cfg.inc?` | ${cfg.inc}`:'')}
+  return s+(MODE_LABEL[n.mode]&&n.mode!=='fischer'&&!/delay|Hourglass/i.test(s)?` · ${MODE_LABEL[n.mode]}`:'');
+}
+function render(){
+  for(const i of [1,2]){
+    $('t'+i).innerHTML=fmt(st.time[i]);
+    $('m'+i).textContent='Moves: '+st.moves[i];
+    $('x'+i).textContent=label();
+    const el=$('s'+i);
+    el.classList.toggle('active',st.active===i&&st.flag===0);
+    el.classList.toggle('low',st.time[i]<20000);
+    el.classList.toggle('flag',st.flag===i);
+    let w=0;
+    if(st.running&&st.active===i&&st.mode==='delay'&&st.inc[i]>0){w=Math.max(0,1-st.turnUsed/st.inc[i])*100}
+    $('d'+i).style.width=w+'%';
+  }
+  $('bPause').textContent=st.running?'⏸':'▶';
+  $('bSound').textContent=sound?'🔊':'🔇';
+}
+function tick(now){
+  if(!st.running)return;
+  const dt=now-st.last;st.last=now;
+  const a=st.active,o=3-a;
+  const prevUsed=st.turnUsed;st.turnUsed+=dt;
+  let spend=dt;
+  if(st.mode==='delay'){const d=st.inc[a];spend=Math.max(0,st.turnUsed-Math.max(d,prevUsed))}
+  st.time[a]-=spend;
+  if(st.mode==='hourglass')st.time[o]+=spend;
+  if(st.time[a]<=0){st.time[a]=0;st.running=false;st.flag=a;beep(220,0.6);vibrate([300,100,300]);releaseWake();render();return}
+  if(st.time[a]<10000&&Math.floor((st.time[a]+spend)/1000)!==Math.floor(st.time[a]/1000))beep(880,0.05);
+  render();raf=requestAnimationFrame(tick);
+}
+function start(){if(st.flag||!st.active)return;st.running=true;st.last=performance.now();requestWake();raf=requestAnimationFrame(tick);render()}
+function pause(){st.running=false;cancelAnimationFrame(raf);releaseWake();render()}
+function press(i){
+  if(st.flag)return;
+  unlockAudio();
+  if(st.active===0){st.active=3-i;st.turnUsed=0;start();click();return}
+  if(st.active!==i)return;
+  if(!st.running){start();return}
+  const now=performance.now();st.turnUsed+=now-st.last;
+  // credit time for the completed move
+  if(st.mode==='fischer')st.time[i]+=st.inc[i];
+  if(st.mode==='bronstein')st.time[i]+=Math.min(st.inc[i],st.turnUsed);
+  st.moves[i]++;
+  if(st.stage&&st.moves[i]===st.stage.move&&!st.staged[i]){st.time[i]+=st.stage.add*60000;st.staged[i]=1}
+  st.active=3-i;st.turnUsed=0;st.last=now;click();vibrate(15);render();
+}
+// audio
+function unlockAudio(){if(!audioCtx){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)()}catch{}}if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume()}
+function beep(f,d){if(!sound||!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=f;g.gain.value=.15;o.connect(g);g.connect(audioCtx.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+d);o.stop(audioCtx.currentTime+d)}
+function click(){beep(1200,0.03)}
+function vibrate(p){if(navigator.vibrate)try{navigator.vibrate(p)}catch{}}
+async function requestWake(){try{if('wakeLock' in navigator&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null)}}catch{}}
+function releaseWake(){try{wakeLock&&wakeLock.release()}catch{}wakeLock=null}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&st.running)requestWake()});
+
+$('s1').addEventListener('pointerdown',e=>{e.preventDefault();press(1)});
+$('s2').addEventListener('pointerdown',e=>{e.preventDefault();press(2)});
+$('bPause').onclick=()=>{unlockAudio();st.running?pause():start()};
+$('bReset').onclick=()=>{if(st.running||st.moves[1]||st.moves[2]){if(!confirm('Reset the clock?'))return}pause();reset()};
+$('bSound').onclick=()=>{sound=!sound;store.set('sound',sound);unlockAudio();render()};
+$('bSetup').onclick=()=>{pause();openSetup()};
+$('bClose').onclick=()=>$('setup').classList.remove('open');
+
+// setup
+let cMode='fischer';
+function setMode(m){cMode=m;document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  $('modeHint').textContent=MODE_HINT[m];$('incRow').style.display=m==='none'?'none':'flex';
+  $('incLabel').textContent=m==='fischer'?'Increment (sec)':'Delay (sec)'}
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+$('cOdds').onchange=()=>$('oddsBox').style.display=$('cOdds').checked?'block':'none';
+$('cStage').onchange=()=>$('stageBox').style.display=$('cStage').checked?'block':'none';
+function same(a,b){return JSON.stringify(a)===JSON.stringify(b)}
+function choose(p){cfg={...p};store.set('cfg',cfg);reset();$('setup').classList.remove('open')}
+function presetBtn(p){const b=document.createElement('button');b.className='preset'+(same(p,cfg)?' sel':'');
+  b.innerHTML=`${p.name}${p.sub?`<small>${p.sub}</small>`:''}`;b.onclick=()=>choose(p);return b}
+function openSetup(){
+  document.querySelectorAll('.grid').forEach(g=>{g.innerHTML='';PRESETS.filter(p=>p.cat===g.dataset.cat).forEach(p=>g.appendChild(presetBtn(p)))});
+  const mine=store.get('mine',[]),box=$('mine');box.innerHTML='';
+  if(!mine.length)box.innerHTML='<div class="hint">None saved yet.</div>';
+  mine.forEach((p,i)=>{const r=document.createElement('div');r.className='mine';const b=presetBtn(p);
+    const d=document.createElement('button');d.className='del';d.textContent='✕';d.onclick=()=>{mine.splice(i,1);store.set('mine',mine);openSetup()};
+    r.append(b,d);box.appendChild(r)});
+  const n=normalize(cfg);
+  $('cMin').value=cfg.min;$('cInc').value=cfg.inc||0;setMode(n.mode==='hourglass'?'none':n.mode);
+  $('cOdds').checked=!!cfg.odds;$('oddsBox').style.display=cfg.odds?'block':'none';
+  $('cMin1').value=cfg.odds?cfg.odds.min:cfg.min;$('cInc1').value=cfg.odds?cfg.odds.inc:(cfg.inc||0);
+  $('cStage').checked=!!cfg.stage;$('stageBox').style.display=cfg.stage?'block':'none';
+  $('cStageMove').value=cfg.stage?cfg.stage.move:40;$('cStageAdd').value=cfg.stage?cfg.stage.add:30;
+  $('cName').value='';
+  $('setup').classList.add('open');
+}
+function readCustom(){
+  const min=parseFloat($('cMin').value),inc=cMode==='none'?0:parseFloat($('cInc').value)||0;
+  if(!(min>0)){alert('Set the minutes first.');return null}
+  const c={cat:'mine',min,inc,mode:cMode};
+  if($('cOdds').checked){const m1=parseFloat($('cMin1').value);if(!(m1>0)){alert('Set the top player minutes.');return null}c.odds={min:m1,inc:cMode==='none'?0:parseFloat($('cInc1').value)||0}}
+  if($('cStage').checked){const mv=parseInt($('cStageMove').value),ad=parseFloat($('cStageAdd').value);if(mv>0&&ad>0)c.stage={move:mv,add:ad}}
+  const nm=$('cName').value.trim();
+  c.name=nm||(`${min}`+(inc?(cMode==='fischer'?` | ${inc}`:` + ${inc}s ${cMode==='delay'?'delay':'Bronstein'}`):'')+(c.odds?` vs ${c.odds.min}`:''));
+  if(c.stage)c.sub=`+${c.stage.add} at move ${c.stage.move}`;
+  return c;
+}
+$('bStartCustom').onclick=()=>{const c=readCustom();if(c)choose(c)};
+$('bSave').onclick=()=>{const c=readCustom();if(!c)return;const mine=store.get('mine',[]);mine.push(c);store.set('mine',mine);openSetup()};
+
+reset();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
